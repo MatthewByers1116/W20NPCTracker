@@ -1,0 +1,278 @@
+﻿@page "/"
+@using W20Tracker.Models
+@inject EncounterStateService EncounterService
+@rendermode InteractiveServer
+
+<PageTitle>W20 Encounter Dashboard</PageTitle>
+
+<div class="dashboard-container">
+    <div class="deployment-header">
+        <h2>Deploy Antagonists</h2>
+        <button class="btn-clear" @onclick="ClearAll">Clear All Combatants</button>
+    </div>
+
+    <div class="category-deploy-grid">
+        @foreach (var category in distinctCategories)
+        {
+            <div class="category-box">
+                <h4>@category</h4>
+                <div class="deploy-controls">
+                    <select @bind="selectedTemplates[category]" class="template-dropdown">
+                        @foreach (var npc in EncounterService.EnemyTemplates.Where(t => t.Category == category))
+                        {
+                            <option value="@npc.Name">@npc.Name</option>
+                        }
+                    </select>
+
+                    <select @bind="selectedLevels[category]" class="rank-dropdown" title="Level/Rank">
+                        <option value="1">Lvl 1</option>
+                        <option value="2">Lvl 2</option>
+                        <option value="3">Lvl 3</option>
+                        <option value="4">Lvl 4</option>
+                        <option value="5">Lvl 5</option>
+                    </select>
+
+                    <button class="btn-add" @onclick="() => DeployNpc(category)">Deploy</button>
+                </div>
+            </div>
+        }
+    </div>
+
+    <hr class="divider" />
+    <h2>Active Encounter Order</h2>
+
+    <div class="dashboard-grid">
+        @foreach (var npc in EncounterService.ActiveNPCs)
+        {
+            <div class="npc-card">
+                <div class="card-header">
+                    <h3>@npc.Name</h3>
+                    <div class="npc-category">@npc.Category</div>
+                </div>
+                
+                <div class="quick-stats">
+                    <div class="stat-row">
+                        <span>Init: <strong>@npc.InitiativeBase</strong></span>
+                        <span>Soak: <strong>@npc.SoakDice</strong></span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Dodge: <strong>@npc.DodgePool</strong></span>
+                        <span>Block: <strong>@npc.BlockPool</strong></span>
+                        <span>Parry: <strong>@npc.ParryPool</strong></span>
+                    </div>
+
+                    <div class="stat-row movement-row">
+                        <span><strong>Move:</strong> @npc.CurrentMovementDisplay</span>
+                    </div>
+                    
+                    @if (!string.IsNullOrEmpty(npc.ArmorName) && npc.ArmorName != "None")
+                    {
+                        <div class="stat-row armor-row">
+                            <span class="armor-text">Armor: <strong>@npc.ArmorName</strong> (+@npc.ArmorRating Soak, -@npc.ArmorDexPenalty Dex)</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="resource-section">
+                    <div class="resource-row">
+                        <span class="res-label">Willpower:</span>
+                        <div class="res-controls">
+                            <button class="btn-res" @onclick="() => { if(npc.CurrentWillpower > 0) npc.CurrentWillpower--; }">-</button>
+                            <strong>@npc.CurrentWillpower / @npc.MaxWillpower</strong>
+                            <button class="btn-res" @onclick="() => { if(npc.CurrentWillpower < npc.MaxWillpower) npc.CurrentWillpower++; }">+</button>
+                        </div>
+                    </div>
+                    
+                    @if(npc.MaxRage > 0)
+                    {
+                        <div class="resource-row">
+                            <span class="res-label">Rage:</span>
+                            <div class="res-controls">
+                                <button class="btn-res" @onclick="() => { if(npc.CurrentRage > 0) npc.CurrentRage--; }">-</button>
+                                <strong>@npc.CurrentRage / @npc.MaxRage</strong>
+                                <button class="btn-res" @onclick="() => { if(npc.CurrentRage < npc.MaxRage) npc.CurrentRage++; }">+</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if(npc.MaxGnosis > 0)
+                    {
+                        <div class="resource-row">
+                            <span class="res-label">Gnosis:</span>
+                            <div class="res-controls">
+                                <button class="btn-res" @onclick="() => { if(npc.CurrentGnosis > 0) npc.CurrentGnosis--; }">-</button>
+                                <strong>@npc.CurrentGnosis / @npc.MaxGnosis</strong>
+                                <button class="btn-res" @onclick="() => { if(npc.CurrentGnosis < npc.MaxGnosis) npc.CurrentGnosis++; }">+</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if(npc.MaxEssence > 0)
+                    {
+                        <div class="resource-row">
+                            <span class="res-label">Essence (HP):</span>
+                            <div class="res-controls">
+                                <button class="btn-res" @onclick="() => { if(npc.CurrentEssence > 0) npc.CurrentEssence--; }">-</button>
+                                <strong>@npc.CurrentEssence / @npc.MaxEssence</strong>
+                                <button class="btn-res" @onclick="() => { if(npc.CurrentEssence < npc.MaxEssence) npc.CurrentEssence++; }">+</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="health-track">
+                    <div class="health-label">Health (Click to cycle B/L/A):</div>
+                    <div class="health-boxes">
+                        @for (int i = 0; i < 7; i++)
+                        {
+                            int currentIndex = i; 
+                            <button class="wod-box @npc.HealthBoxes[currentIndex].ToString().ToLower()" 
+                                    @onclick="() => CycleDamage(npc, currentIndex)">
+                                @GetDamageSymbol(npc.HealthBoxes[currentIndex])
+                            </button>
+                        }
+                    </div>
+                    <p class="penalty-text">Wound Penalty: <strong>@npc.CurrentWoundPenalty</strong></p>
+                </div>
+
+                <div class="attacks-list">
+                    <div class="health-label">Attack Pools (Diff 6):</div>
+                    @foreach (var attack in npc.Attacks)
+                    {
+                        int currentPool = Math.Max(0, attack.AttackPool + npc.CurrentWoundPenalty);
+                        <div class="attack-item">
+                            <strong>@attack.Name:</strong> Roll @currentPool
+                        </div>
+                    }
+                </div>
+
+                @if (npc.SpecialAbilities.Any())
+                {
+                    <div class="special-abilities">
+                        <div class="health-label">Notes / Abilities:</div>
+                        <ul>
+                            @foreach(var ability in npc.SpecialAbilities)
+                            {
+                                <li>@ability</li>
+                            }
+                        </ul>
+                    </div>
+                }
+                
+                <button class="remove-btn" @onclick="() => RemoveNpc(npc)">Remove from Combat</button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<string> distinctCategories = new();
+    private Dictionary<string, string> selectedTemplates = new();
+    private Dictionary<string, int> selectedLevels = new(); 
+
+    protected override void OnInitialized()
+    {
+        distinctCategories = EncounterService.EnemyTemplates.Select(t => t.Category).Distinct().ToList();
+
+        foreach (var category in distinctCategories)
+        {
+            var firstNpc = EncounterService.EnemyTemplates.FirstOrDefault(t => t.Category == category);
+            if (firstNpc != null)
+            {
+                selectedTemplates[category] = firstNpc.Name;
+            }
+            selectedLevels[category] = 1; 
+        }
+    }
+
+    private void DeployNpc(string category)
+    {
+        var templateName = selectedTemplates[category];
+        var level = selectedLevels[category];
+        
+        if (!string.IsNullOrEmpty(templateName))
+        {
+            EncounterService.SpawnEnemy(templateName, level);
+        }
+    }
+
+    private void CycleDamage(Combatant npc, int index)
+    {
+        int currentState = (int)npc.HealthBoxes[index];
+        npc.HealthBoxes[index] = (DamageState)((currentState + 1) % 4);
+    }
+
+    private string GetDamageSymbol(DamageState state) => state switch
+    {
+        DamageState.Bashing => "/", DamageState.Lethal => "X", DamageState.Aggravated => "*", _ => " "
+    };
+
+    private void RemoveNpc(Combatant npc) => EncounterService.RemoveNPC(npc);
+    private void ClearAll() => EncounterService.ClearEncounter();
+}
+
+<style>
+    .dashboard-container { font-family: 'Segoe UI', sans-serif; padding: 20px; }
+    
+    .deployment-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .btn-clear { background: #cc0000; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+    
+    .category-deploy-grid { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 30px; }
+    .category-box { background: #2d2d30; color: white; padding: 15px; border-radius: 6px; flex-grow: 1; min-width: 250px; }
+    .category-box h4 { margin-top: 0; margin-bottom: 10px; border-bottom: 1px solid #555; padding-bottom: 5px; color: #0098ff; }
+    
+    .deploy-controls { display: flex; gap: 8px; }
+    .template-dropdown { flex-grow: 1; padding: 6px; border-radius: 4px; }
+    .rank-dropdown { width: 80px; padding: 6px; border-radius: 4px; }
+    .btn-add { background: #007acc; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .btn-add:hover { background: #0088e6; }
+    
+    .divider { border: 1px solid #ccc; margin-bottom: 20px; }
+    .dashboard-grid { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+
+    .npc-card {
+        border: 2px solid #444; border-top: 6px solid #8B0000; border-radius: 8px; padding: 15px; width: 330px;
+        background: #f9f9f9; box-shadow: 3px 3px 10px rgba(0,0,0,0.2); display: flex; flex-direction: column;
+    }
+
+    .card-header { border-bottom: 1px solid #ccc; margin-bottom: 10px; padding-bottom: 5px; }
+    .card-header h3 { margin: 0 0 2px 0; font-size: 1.2rem; }
+    .npc-category { font-size: 0.85rem; color: #777; font-style: italic; }
+    
+    .quick-stats { background: #eaeaea; padding: 8px; border-radius: 4px; font-size: 0.9rem; margin-bottom: 10px; }
+    .stat-row { display: flex; justify-content: space-around; margin-bottom: 3px; }
+    .movement-row { display: block; text-align: center; margin-top: 6px; padding-top: 4px; border-top: 1px solid #ddd; color: #333; font-size: 0.85rem; }
+    .armor-row { margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px; font-size: 0.85rem; color: #555; display: block; text-align: center; }
+
+    .resource-section { border: 1px solid #ddd; background: white; padding: 8px; border-radius: 4px; margin-bottom: 10px;}
+    .resource-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 0.9rem;}
+    .resource-row:last-child { margin-bottom: 0; }
+    .res-label { font-weight: bold; color: #444; }
+    .res-controls { display: flex; align-items: center; gap: 10px; }
+    .btn-res { background: #eee; border: 1px solid #ccc; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-weight: bold;}
+    .btn-res:hover { background: #ddd; }
+
+    .health-track { margin-bottom: 15px; }
+    .health-label { font-size: 0.85rem; color: #555; margin-bottom: 5px; font-weight: bold; }
+    
+    .health-boxes { display: flex; gap: 5px; }
+    .wod-box {
+        width: 28px; height: 28px; cursor: pointer; border: 1px solid #333; background: white; 
+        font-weight: bold; font-family: monospace; font-size: 1.1rem; display: flex; align-items: center; justify-content: center;
+    }
+    
+    .wod-box.bashing { color: #888; }
+    .wod-box.lethal { color: #d35400; background: #fae5d3; }
+    .wod-box.aggravated { color: white; background: #8B0000; }
+
+    .penalty-text { font-size: 0.9rem; margin: 5px 0 10px 0; }
+    .attacks-list { margin-bottom: 15px; }
+    .attack-item { background: #333; color: white; padding: 8px; border-radius: 4px; margin-bottom: 4px; font-size: 0.95rem; }
+
+    .special-abilities { flex-grow: 1; background: #eef2f5; border: 1px dashed #aaa; padding: 8px; border-radius: 4px; font-size: 0.85rem; }
+    .special-abilities ul { margin: 0; padding-left: 20px; color: #333; }
+    .special-abilities li { margin-bottom: 4px; }
+
+    .remove-btn { margin-top: 15px; background: transparent; color: #cc0000; border: 1px solid #cc0000; border-radius: 4px; cursor: pointer; padding: 5px; }
+    .remove-btn:hover { background: #cc0000; color: white; }
+</style>
